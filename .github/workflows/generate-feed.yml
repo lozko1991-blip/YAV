@@ -1,0 +1,64 @@
+name: Generate KASTA Feed
+
+on:
+  schedule:
+    - cron: "0 0,5,10,15,20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download previous state
+        uses: actions/download-artifact@v4
+        with:
+          name: kasta-state
+          path: .
+        continue-on-error: true
+
+      - name: Generate XML and Report
+        run: |
+          python generate.py
+          python report.py
+          mkdir -p _site
+          cp kasta_feed.xml _site/
+          cp report.html _site/
+          cp state.json _site/
+
+      - name: Upload state artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasta-state
+          path: state.json
+          retention-days: 30
+          overwrite: true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
